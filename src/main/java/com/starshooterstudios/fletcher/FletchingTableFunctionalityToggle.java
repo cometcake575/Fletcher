@@ -1,5 +1,6 @@
 package com.starshooterstudios.fletcher;
 
+import com.destroystokyo.paper.event.server.ServerTickEndEvent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.resource.ResourcePackInfo;
 import net.kyori.adventure.text.Component;
@@ -39,6 +40,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -133,7 +135,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
     }
 
     public ItemStack makeSlot(int num) {
-        ItemStack slot = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        ItemStack slot = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta meta = slot.getItemMeta();
         meta.setHideTooltip(true);
         meta.setCustomModelData(num);
@@ -279,7 +281,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
 
                     ItemStack item = gui.getInventory().getItem(1);
                     boolean isTipped = item != null && isFilled(gui, 3) != 0;
-                    if (isTipped && !item.getType().equals(Material.FLINT) && !item.getType().equals(Material.LIGHT_GRAY_STAINED_GLASS_PANE)) {
+                    if (isTipped && !item.getType().equals(Material.FLINT) && !item.getType().equals(Material.LIME_STAINED_GLASS_PANE)) {
                         gui.getInventory().setItem(16, empty);
 
                         gui.getInventory().setItem(14, emptyInvalidTip);
@@ -597,8 +599,28 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         if (head == 2) force /= 2;
         else if (head == 3) force /= 1.5f;
 
+        if (hilt == 2) event.getProjectile().setGravity(false);
+
         ((AbstractProjectile) event.getProjectile()).getHandle().shootFromRotation(((CraftEntity) event.getEntity()).getHandle(), event.getEntity().getPitch(), event.getEntity().getYaw(), 0, force, 3 - feathers);
         event.getProjectile().getPersistentDataContainer().set(arrowDataKey, PersistentDataType.TAG_CONTAINER, container);
+    }
+
+    @EventHandler
+    public void onServerTickEnd(ServerTickEndEvent event) {
+        for (World world : Bukkit.getWorlds()) {
+            for (AbstractArrow arrow : world.getEntitiesByClass(AbstractArrow.class)) {
+                if (!arrow.hasGravity()) arrow.setVelocity(arrow.getVelocity().add(new Vector(0, -0.025, 0)));
+                PersistentDataContainer container = arrow.getPersistentDataContainer().get(arrowDataKey, PersistentDataType.TAG_CONTAINER);
+                if (container == null) continue;
+                int i = container.getOrDefault(hiltKey, PersistentDataType.INTEGER, 0);
+                if (i == 0) continue;
+                Vec3 vec3d = ((CraftAbstractArrow) arrow).getHandle().getDeltaMovement();
+                double d1 = vec3d.x;
+                double d2 = vec3d.y;
+                double d3 = vec3d.z;
+                arrow.getWorld().spawnParticle(i == 3 ? Particle.SMALL_FLAME : Particle.WHITE_SMOKE, arrow.getLocation().clone().add(d1 * i/4, d2 * i/4, d3 * i/4), 1, 0.1, 0.1, 0.1, 0.04);
+            }
+        }
     }
 
     @EventHandler
@@ -616,6 +638,8 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
             if (hilt == 3) force *= 1.5f;
             if (head == 2) force /= 2;
             else if (head == 3) force /= 1.5f;
+
+            if (hilt == 2) event.getEntity().setGravity(false);
 
             ((AbstractProjectile) event.getEntity()).getHandle().shoot(event.getEntity().getVelocity().getX(), event.getEntity().getVelocity().getY(), event.getEntity().getVelocity().getZ(), force, 3 - feathers);
             event.getEntity().getPersistentDataContainer().set(arrowDataKey, PersistentDataType.TAG_CONTAINER, container);
@@ -736,7 +760,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
     public void onPlayerJoin(PlayerJoinEvent event) throws ExecutionException, InterruptedException {
         if (!getConfig().getBoolean("enable-resource-pack")) return;
         ResourcePackInfo packInfo = ResourcePackInfo.resourcePackInfo()
-                .uri(URI.create(""))
+                .uri(URI.create("https://github.com/cometcake575/Fletcher/raw/refs/heads/main/FletcherPack.zip"))
                 .computeHashAndBuild().get();
         Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> event.getPlayer().sendResourcePacks(packInfo), 5);
     }
