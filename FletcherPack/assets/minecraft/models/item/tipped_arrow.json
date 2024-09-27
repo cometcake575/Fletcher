@@ -1,0 +1,12 @@
+{
+    "parent": "item/generated",
+    "textures": {
+        "layer0": "item/tipped_arrow_head",
+        "layer1": "item/tipped_arrow_base",
+        "layer2": "item/arrow/stick_hilt"
+    },
+    "overrides": [
+        { "predicate": { "custom_model_data": 2 }, "model": "item/arrow/breeze_hilt/tipped_arrow" },
+        { "predicate": { "custom_model_data": 3 }, "model": "item/arrow/blaze_hilt/tipped_arrow" }
+    ]
+}

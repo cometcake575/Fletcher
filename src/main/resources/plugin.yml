@@ -1,0 +1,7 @@
+name: Fletcher
+main: com.starshooterstudios.fletcher.FletchingTableFunctionalityToggle
+version: 1.0.0
+description: Adds functionality to Fletching Tables
+api-version: 1.21
+authors:
+  - cometcake575

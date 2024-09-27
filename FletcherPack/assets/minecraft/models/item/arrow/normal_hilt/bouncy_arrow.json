@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/arrow",
+    "layer1": "minecraft:item/arrow/stick_hilt",
+    "layer2": "minecraft:item/arrow/bouncy_arrow_head"
+  }
+}

@@ -1,0 +1,20 @@
+{
+    "providers": [
+        {
+            "type": "bitmap",
+            "file": "supernova:gui/fletching_table/fletching_table.png",
+            "ascent": 13,
+            "height": 256,
+            "chars": [
+                "\uE000"
+            ]
+        },
+        {
+            "type": "space",
+            "advances": {
+                "\uF000": -8,
+                "\uF001": -169
+            }
+        }
+    ]
+}

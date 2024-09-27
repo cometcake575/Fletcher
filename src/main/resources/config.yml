@@ -1,0 +1,5 @@
+# If you wish to use your own resource pack, disable the pack here and merge [packurl] with your own pack
+enable-resource-pack: true
+
+# Do not touch this!
+config-version: 1.0.0
