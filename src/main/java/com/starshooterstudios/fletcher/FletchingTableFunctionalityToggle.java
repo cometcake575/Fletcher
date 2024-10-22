@@ -23,12 +23,10 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.inventory.ClickType;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.inventory.PrepareItemCraftEvent;
+import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.BlockInventoryHolder;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
@@ -45,6 +43,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -156,7 +155,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
                 if (gui.getInventory().equals(event.getClickedInventory()) && event.getSlot() == 16) {
                     if (event.getClick().isShiftClick()) {
                         event.setCancelled(true);
-                        if (event.getCurrentItem() != null) {
+                        if (event.getCurrentItem() != null && !event.getCurrentItem().getPersistentDataContainer().has(noTakeKey)) {
                             int it = event.getCurrentItem().getAmount();
                             for (ItemStack i : event.getWhoClicked().getInventory().addItem(event.getCurrentItem()).values()) {
                                 if (i.getAmount() == it) return;
@@ -379,7 +378,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
                 if (splashPotionMeta.hasBasePotionType()) {
                     meta.setBasePotionType(splashPotionMeta.getBasePotionType());
                 }
-                meta.displayName(Component.text(hiltName + "Arrow of %s".formatted(getPotionName(splashPotionMeta.getBasePotionType()))).decoration(TextDecoration.ITALIC, false));
+                meta.displayName(Component.text(hiltName + "Arrow of %s".formatted(getPotionName(splashPotionMeta))).decoration(TextDecoration.ITALIC, false));
                 meta.setColor(splashPotionMeta.getColor());
                 for (PotionEffect effect : splashPotionMeta.getCustomEffects()) meta.addCustomEffect(effect, false);
             }
@@ -402,7 +401,11 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         }
     }
 
-    public @NotNull String getPotionName(@Nullable PotionType type) {
+    private final NamespacedKey blindnessPotionKey = new NamespacedKey("illusioners", "blindness_potion");
+
+    public @NotNull String getPotionName(@NotNull PotionMeta meta) {
+        if (meta.getPersistentDataContainer().has(blindnessPotionKey)) return "Blindness";
+        PotionType type = meta.getBasePotionType();
         if (type == null) return "Extraction";
         return switch (type) {
             case THICK -> "Thickness";
@@ -626,6 +629,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
     @EventHandler
     public void onProjectileLaunch(ProjectileLaunchEvent event) {
         if (event.getEntity() instanceof AbstractArrow arrow) {
+            if (arrow.getShooter() instanceof Entity) return;
             ItemStack item = arrow.getItemStack();
             PersistentDataContainer container = item.getPersistentDataContainer().get(arrowDataKey, PersistentDataType.TAG_CONTAINER);
             if (container == null) return;
@@ -675,6 +679,14 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
     public void onProjectileHit(ProjectileHitEvent event) {
         if (!(event.getEntity() instanceof Arrow arrow)) return;
 
+        if (event.getHitEntity() instanceof LivingEntity entity) {
+            List<PotionEffect> effects = new ArrayList<>(arrow.getCustomEffects());
+            if (arrow.getBasePotionType() != null) effects.addAll(arrow.getBasePotionType().getPotionEffects());
+            for (PotionEffect effect : effects) {
+                entity.addPotionEffect(effect.withDuration(effect.getDuration() / 8));
+            }
+        }
+
         PersistentDataContainer container = event.getEntity().getPersistentDataContainer().get(arrowDataKey, PersistentDataType.TAG_CONTAINER);
         if (container == null) return;
         int head = container.getOrDefault(headKey, PersistentDataType.INTEGER, 1);
@@ -686,12 +698,11 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         if (power > 0) damage += (power+1) * 0.25f;
 
         DamageSource.Builder builder = DamageSource.builder(DamageType.ARROW);
-        if (event.getEntity().getShooter() instanceof LivingEntity entity) builder = builder.withDirectEntity(entity).withCausingEntity(entity);
+        if (event.getEntity().getShooter() instanceof LivingEntity entity) builder = builder.withDirectEntity(event.getEntity()).withCausingEntity(entity);
         DamageSource source = builder.build();
         boolean shouldRemove = false;
 
         if (event.getHitEntity() instanceof LivingEntity entity) doKnockback(arrow, entity, source);
-
         switch (head) {
             case 2 -> damage *= 2;
             case 3 -> {
@@ -706,12 +717,23 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
                 event.getEntity().getWorld().playSound(event.getEntity(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1, 1);
 
                 for (Entity entity : event.getEntity().getNearbyEntities(3, 3, 3)) {
-                    if (entity instanceof LivingEntity livingEntity && !livingEntity.equals(event.getHitEntity())) {
-                        livingEntity.damage(damage / Math.max(1, livingEntity.getLocation().distance(event.getEntity().getLocation())*2), source);
+                    if (!entity.equals(event.getHitEntity())) {
+                        ((CraftEntity) event.getHitEntity()).getHandle().hurt(((CraftDamageSource)source).getHandle(), (float) (damage / Math.max(1, entity.getLocation().distance(event.getEntity().getLocation()) * 2)));
+                        if (event.getEntity().getFireTicks() > 0) event.getHitEntity().setFireTicks(100);
                     }
                 }
                 for (Entity entity : event.getEntity().getNearbyEntities(64, 64, 64)) {
-                    if (entity instanceof Warden warden) warden.setAnger(event.getEntity(), 150);
+                    if (entity instanceof Warden warden) {
+                        warden.setDisturbanceLocation(event.getEntity().getLocation());
+                        int i = 0;
+                        while (warden.getEntityAngryAt() != null) {
+                            warden.clearAnger(warden.getEntityAngryAt());
+                            i++;
+                            if (i > 40) break;
+                        }
+                        warden.setTarget(null);
+                        warden.setAnger(event.getEntity(), 150);
+                    }
                 }
             }
             case 6 -> {
@@ -734,7 +756,10 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
             }
         }
 
-        if (event.getHitEntity() instanceof LivingEntity entity) entity.damage(damage, source);
+        if (event.getHitEntity() != null) {
+            ((CraftEntity) event.getHitEntity()).getHandle().hurt(((CraftDamageSource)source).getHandle(), damage);
+            if (event.getEntity().getFireTicks() > 0) event.getHitEntity().setFireTicks(100);
+        }
 
         if (shouldRemove && !event.getEntity().isDead()) {
             ItemStack item;
@@ -763,5 +788,24 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
                 .uri(URI.create("https://github.com/cometcake575/Fletcher/raw/refs/heads/main/FletcherPack.zip"))
                 .computeHashAndBuild().get();
         Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> event.getPlayer().sendResourcePacks(packInfo), 5);
+    }
+
+    @EventHandler
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (event.getInventory().getHolder() instanceof BlockInventoryHolder) {
+            for (int i = 0; i < event.getInventory().getSize(); i++) {
+                ItemStack item = event.getInventory().getItem(i);
+                if (item == null || item.getItemMeta() == null) continue;
+                if (!item.getPersistentDataContainer().has(arrowDataKey)) {
+                    switch (item.getType()) {
+                        case ARROW -> event.getInventory().setItem(i, makeArrow(1, 1, 3, item.getAmount(), null));
+                        case SPECTRAL_ARROW ->
+                                event.getInventory().setItem(i, makeArrow(4, 1, random.nextInt(1, 4), item.getAmount(), null));
+                        case TIPPED_ARROW ->
+                                event.getInventory().setItem(i, makeArrow(1, 1, 3, item.getAmount(), item));
+                    }
+                }
+            }
+        }
     }
 }
