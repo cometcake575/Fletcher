@@ -718,8 +718,8 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
 
                 for (Entity entity : event.getEntity().getNearbyEntities(3, 3, 3)) {
                     if (!entity.equals(event.getHitEntity())) {
-                        ((CraftEntity) event.getHitEntity()).getHandle().hurt(((CraftDamageSource)source).getHandle(), (float) (damage / Math.max(1, entity.getLocation().distance(event.getEntity().getLocation()) * 2)));
-                        if (event.getEntity().getFireTicks() > 0) event.getHitEntity().setFireTicks(100);
+                        ((CraftEntity) entity).getHandle().hurt(((CraftDamageSource)source).getHandle(), (float) (damage / Math.max(1, entity.getLocation().distance(event.getEntity().getLocation()) * 2)));
+                        if (event.getEntity().getFireTicks() > 0) entity.setFireTicks(100);
                     }
                 }
                 for (Entity entity : event.getEntity().getNearbyEntities(64, 64, 64)) {
