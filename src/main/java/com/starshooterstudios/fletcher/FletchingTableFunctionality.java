@@ -32,6 +32,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -43,12 +44,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class FletchingTableFunctionalityToggle extends JavaPlugin implements Listener {
+public class FletchingTableFunctionality extends JavaPlugin implements Listener {
     private NamespacedKey noTakeKey;
     private NamespacedKey tippedIdentifierKey;
     private NamespacedKey headKey;
@@ -133,11 +132,14 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         event.getPlayer().openInventory(inventory);
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public ItemStack makeSlot(int num) {
         ItemStack slot = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta meta = slot.getItemMeta();
         meta.setHideTooltip(true);
-        meta.setCustomModelData(num);
+        CustomModelDataComponent comp = meta.getCustomModelDataComponent();
+        comp.setStrings(Collections.singletonList(String.valueOf(num)));
+        meta.setCustomModelDataComponent(comp);
         meta.getPersistentDataContainer().set(noTakeKey, PersistentDataType.BOOLEAN, true);
         slot.setItemMeta(meta);
         return slot;
@@ -336,6 +338,7 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     public ItemStack makeArrow(int headID, int hiltID, int feathers, int amount, @Nullable ItemStack potion) {
         boolean isTipped = potion != null;
 
@@ -382,9 +385,14 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
                 meta.setColor(splashPotionMeta.getColor());
                 for (PotionEffect effect : splashPotionMeta.getCustomEffects()) meta.addCustomEffect(effect, false);
             }
-            arrowMeta.setCustomModelData(hiltID);
+            CustomModelDataComponent comp = arrowMeta.getCustomModelDataComponent();
+            comp.setStrings(Collections.singletonList(String.valueOf(hiltID)));
+            arrowMeta.setCustomModelDataComponent(comp);
         } else {
-            arrowMeta.setCustomModelData(Integer.parseInt("%s%s".formatted(headID, hiltID)));
+            String cmd = "%s%s".formatted(headID, hiltID);
+            CustomModelDataComponent comp = arrowMeta.getCustomModelDataComponent();
+            comp.setStrings(Collections.singletonList(cmd));
+            arrowMeta.setCustomModelDataComponent(comp);
             arrowMeta.displayName(Component.text(hiltName + headName + "Arrow").decoration(TextDecoration.ITALIC, false));
         }
 
@@ -521,11 +529,13 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         });
     }
 
+    private final Set<Integer> slots = Set.of(1, 3, 10, 19, 20, 21);
+
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getInventory().getHolder() instanceof CustomGUI gui) {
             if (gui.getInventoryType().equals(CustomGUI.CustomInventoryType.FLETCHING_TABLE)) {
-                for (int i : List.of(1, 3, 10, 19, 20, 21)) {
+                for (int i : slots) {
                     ItemStack item = gui.getInventory().getItem(i);
                     if (item == null || item.getItemMeta() == null || item.getPersistentDataContainer().has(noTakeKey)) continue;
                     for (ItemStack it : event.getPlayer().getInventory().addItem(item).values()) {
@@ -612,11 +622,12 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
     public void onServerTickEnd(ServerTickEndEvent event) {
         for (World world : Bukkit.getWorlds()) {
             for (AbstractArrow arrow : world.getEntitiesByClass(AbstractArrow.class)) {
+                if (arrow.isInBlock()) continue;
                 if (!arrow.hasGravity()) arrow.setVelocity(arrow.getVelocity().add(new Vector(0, -0.025, 0)));
                 PersistentDataContainer container = arrow.getPersistentDataContainer().get(arrowDataKey, PersistentDataType.TAG_CONTAINER);
                 if (container == null) continue;
                 int i = container.getOrDefault(hiltKey, PersistentDataType.INTEGER, 0);
-                if (i == 0) continue;
+                if (i == 0 || i == 1) continue;
                 Vec3 vec3d = ((CraftAbstractArrow) arrow).getHandle().getDeltaMovement();
                 double d1 = vec3d.x;
                 double d2 = vec3d.y;
@@ -718,7 +729,8 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
 
                 for (Entity entity : event.getEntity().getNearbyEntities(3, 3, 3)) {
                     if (!entity.equals(event.getHitEntity())) {
-                        ((CraftEntity) entity).getHandle().hurt(((CraftDamageSource)source).getHandle(), (float) (damage / Math.max(1, entity.getLocation().distance(event.getEntity().getLocation()) * 2)));
+                        net.minecraft.world.entity.Entity en = ((CraftEntity) entity).getHandle();
+                        en.hurtServer(en.level().getMinecraftWorld(), ((CraftDamageSource)source).getHandle(), (float) (damage / Math.max(1, entity.getLocation().distance(event.getEntity().getLocation()) * 2)));
                         if (event.getEntity().getFireTicks() > 0) entity.setFireTicks(100);
                     }
                 }
@@ -757,7 +769,8 @@ public class FletchingTableFunctionalityToggle extends JavaPlugin implements Lis
         }
 
         if (event.getHitEntity() != null) {
-            ((CraftEntity) event.getHitEntity()).getHandle().hurt(((CraftDamageSource)source).getHandle(), damage);
+            net.minecraft.world.entity.Entity en = ((CraftEntity) event.getHitEntity()).getHandle();
+            en.hurtServer(en.level().getMinecraftWorld(), ((CraftDamageSource)source).getHandle(), damage);
             if (event.getEntity().getFireTicks() > 0) event.getHitEntity().setFireTicks(100);
         }
 
