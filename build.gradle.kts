@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.starshooterstudios.fletcher"
-version = "1.0.12"
+version = "1.0.13"
 
 repositories {
     mavenCentral()

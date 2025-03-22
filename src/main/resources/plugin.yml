@@ -1,6 +1,6 @@
 name: Fletcher
 main: com.starshooterstudios.fletcher.FletchingTableFunctionality
-version: 1.0.12
+version: 1.0.13
 description: Adds functionality to Fletching Tables
 api-version: "1.21"
 authors:
